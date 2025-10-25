@@ -1,384 +1,327 @@
-import React, { useState, useEffect } from "react";
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
-import {
-  BookOpen,
-  Users,
-  PlusCircle,
-  LogOut,
-  BookOpenCheck,
-  AlertTriangle,
-  CheckCircle,
-  Loader2,
-  Calendar,
-  Clock,
-  Trash2,
-} from "lucide-react";
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import Header from '../components/Header';
 
-const API_URL = "https://proctorai-plus-1.onrender.com";
-
-// 🌟 Admin Header
-const AdminHeader = ({ onLogout }) => (
-  <nav className="bg-white/90 backdrop-blur-lg shadow-sm border-b border-gray-200/50 sticky top-0 z-50 w-full">
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div className="flex justify-between items-center h-20">
-        <div className="flex items-center gap-2">
-          <span className="text-3xl font-bold flex items-center">
-            <span className="mr-2 text-3xl">🛡️</span>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-800 to-indigo-900">
-              ProctorAI+
-            </span>
-          </span>
-          <span className="ml-2 text-sm font-medium bg-indigo-100 text-indigo-700 rounded-lg px-3 py-1 inline-block border border-indigo-200 shadow-sm hidden sm:inline-block">
-            Admin Portal
-          </span>
-        </div>
-        <button
-          onClick={onLogout}
-          className="group flex items-center px-4 py-2 rounded-lg text-base font-medium text-red-600 bg-gray-100 hover:bg-red-100 hover:text-red-700 transition-all duration-200 border border-gray-200 hover:border-red-300 shadow-sm hover:shadow-md"
-        >
-          <LogOut className="w-5 h-5 mr-0 sm:mr-2 transition-all" />
-          <span className="hidden sm:block">Logout</span>
-        </button>
-      </div>
-    </div>
-  </nav>
-);
-
-// 🌈 Navigation Tabs
-const NavTab = ({ icon: Icon, label, isActive, onClick }) => (
-  <button
-    onClick={onClick}
-    className={`flex items-center px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-      isActive
-        ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md"
-        : "bg-white text-gray-600 hover:bg-gray-50 border border-gray-200"
-    }`}
-  >
-    <Icon
-      className={`w-4 h-4 mr-2 ${isActive ? "text-white" : "text-gray-500"}`}
-    />
-    {label}
-  </button>
-);
+const API_URL = 'https://proctorai-plus-1.onrender.com';
 
 function AdminDashboard() {
-  const navigate = useNavigate();
-  const [view, setView] = useState("view_exams");
+  const [user, setUser] = useState(null);
+  const [view, setView] = useState('view_exams');
+  
+  // For 'View Exams'
   const [exams, setExams] = useState([]);
+  const [loadingExams, setLoadingExams] = useState(false);
+
+  // For 'Create Exam'
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [loadingCreate, setLoadingCreate] = useState(false);
+
+  // For 'Assign Exam'
   const [students, setStudents] = useState([]);
-  const [newExam, setNewExam] = useState({
-    title: "",
-    description: "",
-    duration: "",
-  });
-  const [assignData, setAssignData] = useState({
-    studentId: "",
-    examId: "",
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  const [assignExamId, setAssignExamId] = useState('');
+  const [assignStudentId, setAssignStudentId] = useState('');
+  const [loadingAssign, setLoadingAssign] = useState(false);
+
+  // ✨ NEW: For 'View Sessions'
+  const [sessions, setSessions] = useState([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [selectedExam, setSelectedExam] = useState(null); // To store which exam we're viewing
+
+  // General messages
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  // --- Data Fetching Hooks ---
 
   useEffect(() => {
-    if (!localStorage.getItem("proctorUser")) {
-      navigate("/login");
-      return;
+    const storedUser = JSON.parse(localStorage.getItem('proctorUser'));
+    if (storedUser) {
+      setUser(storedUser);
     }
-    fetchDashboardData();
+    // Fetch exams on initial load
+    fetchExams();
   }, []);
 
-  // 📦 Fetch Data
-  const fetchDashboardData = async () => {
-    setLoading(true);
-    setError("");
+  useEffect(() => {
+    // This effect runs when the 'view' state changes
+    setError('');
+    setSuccess('');
+    
+    if (view === 'view_exams') {
+      fetchExams();
+    } else if (view === 'assign_exam') {
+      if (exams.length === 0) fetchExams();
+      if (students.length === 0) fetchStudents();
+    } else if (view === 'view_sessions' && selectedExam) {
+      fetchSessions(selectedExam.id);
+    }
+  }, [view, selectedExam]); // Re-run when view or selectedExam changes
+
+  // --- API Functions ---
+
+  const fetchExams = async () => {
+    setLoadingExams(true);
     try {
-      const [examRes, studentRes] = await Promise.all([
-        axios.get(`${API_URL}/api/exams`),
-        axios.get(`${API_URL}/api/students`),
-      ]);
-      setExams(examRes.data || []);
-      setStudents(studentRes.data || []);
+      const response = await axios.get(`${API_URL}/api/exams`);
+      setExams(response.data);
+      if (response.data.length > 0 && !assignExamId) {
+        setAssignExamId(response.data[0].id);
+      }
+    } catch (err) { setError('Failed to fetch exams.'); }
+    finally { setLoadingExams(false); }
+  };
+
+  const fetchStudents = async () => {
+    setLoadingStudents(true);
+    try {
+      const response = await axios.get(`${API_URL}/api/students`);
+      setStudents(response.data);
+      if (response.data.length > 0 && !assignStudentId) {
+        setAssignStudentId(response.data[0].id);
+      }
+    } catch (err) { setError('Failed to fetch students.'); }
+    finally { setLoadingStudents(false); }
+  };
+  
+  // ✨ NEW: Function to fetch sessions for a specific exam
+  const fetchSessions = async (examId) => {
+    setLoadingSessions(true);
+    try {
+      const response = await axios.get(`${API_URL}/api/exam_sessions/${examId}`);
+      setSessions(response.data);
     } catch (err) {
-      setError("Failed to load dashboard data.");
-      console.error(err);
+      setError('Failed to fetch proctoring sessions.');
     } finally {
-      setLoading(false);
+      setLoadingSessions(false);
     }
   };
 
-  // ➕ Create Exam
   const handleCreateExam = async (e) => {
     e.preventDefault();
-    setError("");
-    setSuccess("");
+    if (!user) return;
+    setLoadingCreate(true);
+    setSuccess(''); setError('');
     try {
-      await axios.post(`${API_URL}/api/create_exam`, newExam);
-      setNewExam({ title: "", description: "", duration: "" });
-      setSuccess("Exam created successfully!");
-      fetchDashboardData();
+      const payload = { title, description, admin_id: user.id };
+      await axios.post(`${API_URL}/api/exams`, payload);
+      setSuccess('Exam created successfully!');
+      setTitle(''); setDescription('');
+      changeView('view_exams'); // Switch back to view exams
     } catch (err) {
-      setError("Error creating exam. Please try again.");
+      setError(err.response?.data?.message || 'Failed to create exam.');
+    } finally {
+      setLoadingCreate(false);
     }
   };
 
-  // 📤 Assign Exam
   const handleAssignExam = async (e) => {
     e.preventDefault();
-    setError("");
-    setSuccess("");
+    if (!assignExamId || !assignStudentId) {
+      setError('Please select both an exam and a student.');
+      return;
+    }
+    setLoadingAssign(true);
+    setSuccess(''); setError('');
     try {
-      await axios.post(`${API_URL}/api/assign_exam`, assignData);
-      setAssignData({ studentId: "", examId: "" });
-      setSuccess("Exam assigned successfully!");
+      const payload = { exam_id: assignExamId, student_id: assignStudentId };
+      await axios.post(`${API_URL}/api/assign`, payload);
+      setSuccess('Exam assigned successfully!');
     } catch (err) {
-      setError("Error assigning exam. Please try again.");
+      setError(err.response?.data?.message || 'Failed to assign exam.');
+    } finally {
+      setLoadingAssign(false);
     }
   };
 
-  // 🗑️ Delete Exam
-  const handleDeleteExam = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this exam?")) return;
-    try {
-      await axios.delete(`${API_URL}/api/exam/${id}`);
-      fetchDashboardData();
-    } catch {
-      setError("Failed to delete exam.");
+  // --- UI Control Functions ---
+
+  const changeView = (newView) => {
+    setView(newView);
+    if (newView !== 'view_sessions') {
+      setSelectedExam(null); // Clear selected exam if not viewing sessions
     }
   };
 
-  // 📘 Exam List
-  const renderExamList = () => (
-    <div className="space-y-4">
-      {exams.map((exam) => (
-        <div
-          key={exam.id}
-          className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center shadow-sm hover:shadow-md transition-all animate-fade-in"
-        >
-          <div className="flex flex-col">
-            <h3 className="text-lg font-semibold text-indigo-700 flex items-center gap-2">
-              <BookOpenCheck className="w-5 h-5 text-indigo-600" /> {exam.title}
-            </h3>
-            <p className="text-sm text-gray-600 mt-1">{exam.description}</p>
-            <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
-              <span className="flex items-center gap-1">
-                <Clock className="w-4 h-4" /> {exam.duration} mins
-              </span>
-              {exam.scheduled_at && (
-                <span className="flex items-center gap-1">
-                  <Calendar className="w-4 h-4" />{" "}
-                  {new Date(exam.scheduled_at).toLocaleString()}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="flex gap-3 mt-3 sm:mt-0">
-            <button
-              onClick={() => handleDeleteExam(exam.id)}
-              className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+  // ✨ NEW: Handler to set the selected exam and change view
+  const handleViewSessions = (exam) => {
+    setSelectedExam(exam);
+    changeView('view_sessions');
+  };
 
-  // 🧾 Create Exam Form
-  const renderCreateExamForm = () => (
-    <form onSubmit={handleCreateExam} className="space-y-5 animate-fade-in">
-      <div>
-        <label className="block text-sm font-medium text-gray-700">
-          Exam Title
-        </label>
-        <input
-          type="text"
-          required
-          value={newExam.title}
-          onChange={(e) => setNewExam({ ...newExam, title: e.target.value })}
-          className="mt-2 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700">
-          Description
-        </label>
-        <textarea
-          required
-          value={newExam.description}
-          onChange={(e) =>
-            setNewExam({ ...newExam, description: e.target.value })
-          }
-          className="mt-2 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700">
-          Duration (mins)
-        </label>
-        <input
-          type="number"
-          required
-          value={newExam.duration}
-          onChange={(e) =>
-            setNewExam({ ...newExam, duration: e.target.value })
-          }
-          className="mt-2 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
-        />
-      </div>
-      <button
-        type="submit"
-        className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-2 rounded-lg font-semibold hover:shadow-md transition"
-      >
-        Create Exam
-      </button>
-    </form>
-  );
+  // --- Render Logic ---
 
-  // 👩‍🏫 Assign Exam Form
-  const renderAssignExamForm = () => (
-    <form onSubmit={handleAssignExam} className="space-y-5 animate-fade-in">
-      <div>
-        <label className="block text-sm font-medium text-gray-700">
-          Select Student
-        </label>
-        <select
-          required
-          value={assignData.studentId}
-          onChange={(e) =>
-            setAssignData({ ...assignData, studentId: e.target.value })
-          }
-          className="mt-2 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
-        >
-          <option value="">Choose student</option>
-          {students.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.username}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700">
-          Select Exam
-        </label>
-        <select
-          required
-          value={assignData.examId}
-          onChange={(e) =>
-            setAssignData({ ...assignData, examId: e.target.value })
-          }
-          className="mt-2 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
-        >
-          <option value="">Choose exam</option>
-          {exams.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.title}
-            </option>
-          ))}
-        </select>
-      </div>
-      <button
-        type="submit"
-        className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-2 rounded-lg font-semibold hover:shadow-md transition"
-      >
-        Assign Exam
-      </button>
-    </form>
-  );
-
-  // 🌀 Loading
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-slate-50 to-gray-100">
-        <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
-      </div>
-    );
+  if (!user) {
+    return <div className="min-h-screen bg-gray-100 flex items-center justify-center">Loading...</div>;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-slate-50 to-gray-100 text-gray-900 font-sans">
-      <AdminHeader
-        onLogout={() => {
-          localStorage.removeItem("proctorUser");
-          navigate("/login");
-        }}
-      />
-
-      <main className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8 space-y-8">
-        {/* 🌟 Welcome Section */}
-        <section className="bg-white border border-gray-200/80 rounded-2xl shadow-lg p-6 sm:p-8 animate-fade-in">
-          <div className="flex items-start gap-4">
-            <div className="rounded-lg bg-indigo-50 p-3">
-              <BookOpen className="w-7 h-7 text-indigo-600" />
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-                Welcome, <span className="text-indigo-700">Admin</span>
-              </h1>
-              <p className="mt-1 text-sm text-gray-600">
-                Manage exams, assign tests, and oversee student progress.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Navigation Tabs */}
-        <div className="flex flex-wrap gap-3">
-          <NavTab
-            icon={BookOpen}
-            label="View Exams"
-            isActive={view === "view_exams"}
-            onClick={() => setView("view_exams")}
-          />
-          <NavTab
-            icon={PlusCircle}
-            label="Create Exam"
-            isActive={view === "create_exam"}
-            onClick={() => setView("create_exam")}
-          />
-          <NavTab
-            icon={Users}
-            label="Assign Exam"
-            isActive={view === "assign_exam"}
-            onClick={() => setView("assign_exam")}
-          />
-        </div>
-
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center text-red-700 animate-fade-in">
-            <AlertTriangle className="w-5 h-5 mr-3" /> {error}
-          </div>
-        )}
-        {success && (
-          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center text-green-700 animate-fade-in">
-            <CheckCircle className="w-5 h-5 mr-3" /> {success}
+    <div className="min-h-screen bg-gray-100">
+      <Header username={user.username} portalType="Admin" />
+      
+      <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        {/* Navigation Tabs (Only show if not viewing sessions) */}
+        {view !== 'view_sessions' && (
+          <div className="mb-6">
+            <nav className="flex space-x-4" aria-label="Tabs">
+              <button
+                onClick={() => changeView('view_exams')}
+                className={`px-4 py-2 font-medium rounded-md text-sm ${view === 'view_exams' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 bg-white hover:bg-gray-50'}`}
+              >
+                View Exams
+              </button>
+              <button
+                onClick={() => changeView('create_exam')}
+                className={`px-4 py-2 font-medium rounded-md text-sm ${view === 'create_exam' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 bg-white hover:bg-gray-50'}`}
+              >
+                Create New Exam
+              </button>
+              <button
+                onClick={() => changeView('assign_exam')}
+                className={`px-4 py-2 font-medium rounded-md text-sm ${view === 'assign_exam' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 bg-white hover:bg-gray-50'}`}
+              >
+                Assign Exam
+              </button>
+            </nav>
           </div>
         )}
 
-        <section className="bg-white border border-gray-200/80 rounded-2xl shadow-lg p-6 sm:p-10 animate-fade-in">
-          {view === "view_exams" && renderExamList()}
-          {view === "create_exam" && renderCreateExamForm()}
-          {view === "assign_exam" && renderAssignExamForm()}
-        </section>
-      </main>
+        {/* Success/Error Messages */}
+        {error && <div className="mb-4 p-3 bg-red-100 text-red-700 border border-red-200 rounded-md">{error}</div>}
+        {success && <div className="mb-4 p-3 bg-green-100 text-green-700 border border-green-200 rounded-md">{success}</div>}
 
-      <style jsx>{`
-        @keyframes fade-in {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-fade-in {
-          animation: fade-in 0.5s ease-out forwards;
-        }
-      `}</style>
+        {/* --- View Exams Content --- */}
+        {view === 'view_exams' && (
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <h2 className="text-2xl font-bold mb-4 text-gray-800">All Exams</h2>
+            {loadingExams ? <p>Loading exams...</p> : (
+              <div className="space-y-4">
+                {exams.length === 0 ? <p>No exams created yet.</p> : exams.map((exam) => (
+                  <div key={exam.id} className="p-4 border border-gray-200 rounded-lg flex justify-between items-center transition-shadow hover:shadow-lg">
+                    <div>
+                      <h3 className="text-lg font-semibold text-indigo-700">{exam.title}</h3>
+                      <p className="text-sm text-gray-600">{exam.description || 'No description'}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Created by: {exam.admin_username} on {new Date(exam.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    {/* ✨ MODIFIED: Button is now functional */}
+                    <button 
+                      onClick={() => handleViewSessions(exam)}
+                      className="px-3 py-2 bg-indigo-100 text-indigo-700 text-sm font-medium rounded-md hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                      View Sessions
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* --- Create Exam Content --- */}
+        {view === 'create_exam' && (
+          <div className="bg-white p-6 rounded-lg shadow-md max-w-2xl mx-auto">
+            <h2 className="text-2xl font-bold mb-4 text-gray-800">Create a New Exam</h2>
+            {/* ... (form is unchanged) ... */}
+            <form onSubmit={handleCreateExam} className="space-y-4">
+              <div>
+                <label htmlFor="title" className="block text-sm font-medium text-gray-700">Exam Title</label>
+                <input type="text" id="title" value={title} onChange={(e) => setTitle(e.target.value)} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+              </div>
+              <div>
+                <label htmlFor="description" className="block text-sm font-medium text-gray-700">Description (Optional)</label>
+                <textarea id="description" rows="3" value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+              </div>
+              <div>
+                <button type="submit" disabled={loadingCreate} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400">
+                  {loadingCreate ? 'Creating...' : 'Create Exam'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* --- Assign Exam Content --- */}
+        {view === 'assign_exam' && (
+          <div className="bg-white p-6 rounded-lg shadow-md max-w-2xl mx-auto">
+            <h2 className="text-2xl font-bold mb-4 text-gray-800">Assign Exam to Student</h2>
+            {/* ... (form is unchanged) ... */}
+            <form onSubmit={handleAssignExam} className="space-y-4">
+              <div>
+                <label htmlFor="exam" className="block text-sm font-medium text-gray-700">Select Exam</label>
+                <select id="exam" value={assignExamId} onChange={(e) => setAssignExamId(e.target.value)} disabled={loadingExams} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                  {exams.map((exam) => (<option key={exam.id} value={exam.id}>{exam.title}</option>))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="student" className="block text-sm font-medium text-gray-700">Select Student</label>
+                <select id="student" value={assignStudentId} onChange={(e) => setAssignStudentId(e.target.value)} disabled={loadingStudents} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                  {students.map((student) => (<option key={student.id} value={student.id}>{student.username}</option>))}
+                </select>
+              </div>
+              <div>
+                <button type="submit" disabled={loadingAssign} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400">
+                  {loadingAssign ? 'Assigning...' : 'Assign Exam'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* --- ✨ NEW: View Sessions Content --- */}
+        {view === 'view_sessions' && (
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <button
+                  onClick={() => changeView('view_exams')}
+                  className="mb-2 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                >
+                  &larr; Back to All Exams
+                </button>
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Proctoring Sessions for: <span className="text-indigo-700">{selectedExam?.title}</span>
+                </h2>
+              </div>
+            </div>
+
+            {loadingSessions ? <p>Loading sessions...</p> : (
+              <div className="space-y-4">
+                {sessions.length === 0 ? <p>No proctoring sessions have been recorded for this exam yet.</p> : (
+                  sessions.map((session) => {
+                    // Construct the report URL
+                    const reportUrl = `${API_URL}/generate_report/${session.student_username}/${session.session_id}`;
+                    
+                    return (
+                      <div key={session.session_id} className="p-4 border border-gray-200 rounded-lg flex flex-col sm:flex-row justify-between sm:items-center">
+                        <div className="mb-3 sm:mb-0">
+                          <h3 className="text-lg font-semibold text-gray-900">{session.student_username}</h3>
+                          <p className="text-sm text-gray-600">
+                            Started on: {new Date(session.start_time).toLocaleString()}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            Final Score: <span className="font-bold">{session.final_score} / 100</span>
+                          </p>
+                        </div>
+                        <a
+                          href={reportUrl}
+                          target="_blank" // Opens in a new tab
+                          rel="noopener noreferrer"
+                          className="px-3 py-2 bg-green-500 text-white text-sm font-medium rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 text-center"
+                        >
+                          Download Report (PDF)
+                        </a>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
