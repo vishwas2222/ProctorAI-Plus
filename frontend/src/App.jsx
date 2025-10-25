@@ -6,6 +6,8 @@ import LoginPage from './pages/LoginPage';
 import StudentDashboard from './pages/StudentDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import ExamPage from './pages/ExamPage';
+import LandingPage from './pages/LandingPage';
+import AboutUsPage from './pages/AboutUsPage';
 
 // Import Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -14,10 +16,9 @@ function App() {
   return (
     <Routes>
       {/* Public Routes */}
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
-      
-      {/* Default route redirects to login */}
-      <Route path="/" element={<Navigate to="/login" />} />
+      <Route path="/about" element={<AboutUsPage />} />
 
       {/* Admin Protected Routes */}
       <Route element={<ProtectedRoute role="admin" />}>
