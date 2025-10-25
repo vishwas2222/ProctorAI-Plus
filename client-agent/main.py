@@ -112,6 +112,8 @@ face_lock = threading.Lock()
 yolo_lock = threading.Lock()
 hand_lock = threading.Lock()
 gesture_lock = threading.Lock()
+voice_lock = threading.Lock()  # ✨ ADDED
+last_spoken_text = ""        # ✨ ADDED
 current_alerts = set()
 gaze_history = deque(maxlen=5)
 DYNAMIC_THRESHOLDS = {"head_yaw": 15.0, "gaze_min": 0.35, "gaze_max": 0.65, "ear": 0.21}
@@ -257,16 +259,21 @@ def start_voice_listener():
         mic = sr.Microphone()
         with mic as source:
             recognizer.adjust_for_ambient_noise(source, duration=1)
+        
         def callback(recognizer_inst, audio):
-            global voice_active, last_voice_time
+            global voice_active, last_voice_time, last_spoken_text # ✨ MODIFIED
             try:
                 text = recognizer_inst.recognize_google(audio)
                 if text and text.strip():
                     voice_active = True
                     last_voice_time = time.time()
+                    with voice_lock: # ✨ ADDED
+                        last_spoken_text = text # ✨ ADDED
                     print(f"[Voice] Detected: {text}")
             except Exception: pass
+        
         return recognizer.listen_in_background(mic, callback)
+    
     except Exception as e:
         print(f"[⚠️] Microphone not available: {e}")
         return lambda wait_for_stop=True: None
@@ -349,7 +356,7 @@ def face_landmarker_thread(frame_getter):
             landmarker = vision.FaceLandmarker.create_from_options(options)
             created = True
         except Exception as e:
-            tried.append(('buffer', LANDMARKER_TASK_PATH, str(e)))
+            tried.append(('buffer', LANDMARKAR_TASK_PATH, str(e)))
 
     if not created:
         print(f"[❌] Failed to create FaceLandmarker. Attempts:\n{tried}")
@@ -475,7 +482,15 @@ try:
             if face_data["count"] > 1: current_alerts.add("Multiple faces detected!")
             elif distraction: current_alerts.add("Distraction: Looking away while talking")
             elif face_data["no_face"]: current_alerts.add("No person detected!")
-            if is_talking: current_alerts.add("Someone is talking!")
+            
+            # ✨ MODIFIED BLOCK
+            if is_talking: 
+                current_alerts.add("Someone is talking!")
+                with voice_lock:
+                    if last_spoken_text:
+                        # Add the actual spoken text as an alert
+                        current_alerts.add(f"VOICE: {last_spoken_text}")
+                        last_spoken_text = "" # Clear it so it's not sent again
         
         annotated = frame.copy()
 
@@ -515,9 +530,12 @@ try:
 
         # --- Draw Overlays (unchanged) ---
         y_offset = 60
+        # ✨ MODIFIED: Display all alerts, even long voice ones (they will be truncated)
         for alert_text in sorted(list(current_alerts)):
-            cv2.putText(annotated, f"⚠️ {alert_text}", (20, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+            display_text = alert_text[:70] + '...' if len(alert_text) > 70 else alert_text
+            cv2.putText(annotated, f"⚠️ {display_text}", (20, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
             y_offset += 40
+            
         with face_lock:
             emotion_text = f"Emotion: {face_data['emotion']}"
             cv2.putText(annotated, emotion_text, (annotated.shape[1] - 250, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 255), 2)

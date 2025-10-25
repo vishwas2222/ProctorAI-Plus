@@ -1,8 +1,15 @@
 Flask
 Flask-Cors
+<<<<<<< HEAD
 #sqlite3-binary
+=======
+>>>>>>> 684371ad14a5becaec5c7aa3728c01afae0dcbd9
 Werkzeug
 reportlab
 requests
 python-dateutil
 simplejson
+reportlab 
+gunicorn
+pandas
+numpy

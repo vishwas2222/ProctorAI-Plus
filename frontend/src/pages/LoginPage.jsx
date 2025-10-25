@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
 // Define the API URL for your backend
-const API_URL = 'http://127.0.0.1:5000';
+const API_URL = 'https://proctorai-plus-1.onrender.com';
 
 function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
