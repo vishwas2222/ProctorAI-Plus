@@ -1,8 +1,9 @@
 Flask
 Flask-Cors
-sqlite3-binary
 Werkzeug
 reportlab
 requests
 python-dateutil
 simplejson
+reportlab 
+gunicorn
