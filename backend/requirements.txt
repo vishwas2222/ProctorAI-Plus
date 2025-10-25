@@ -1,6 +1,6 @@
 Flask
 Flask-Cors
-sqlite3-binary
+#sqlite3-binary
 Werkzeug
 reportlab
 requests
