@@ -31,6 +31,10 @@ ALERT_WEIGHTS = {
 # We use this to avoid flooding the database
 SESSION_LAST_ALERTS = {}
 
+@app.route('/')
+def home():
+    return jsonify({"status": "ok", "message": "Flask backend running successfully"}), 200
+
 def calculate_integrity_score(alerts):
     score = 100
     if not alerts: return score
