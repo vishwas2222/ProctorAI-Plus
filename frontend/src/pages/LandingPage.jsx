@@ -107,9 +107,11 @@ function LandingPage() {
             sectionObserver.observe(el);
         });
 
-        // Trigger hero animation immediately
-        document.querySelector('.hero-animate')?.classList.add('animate-hero-in');
-        document.querySelector('.hero-animate')?.classList.remove('opacity-0', 'translate-y-8', 'scale-95');
+    // Trigger hero animation for all hero-animate elements immediately
+    document.querySelectorAll('.hero-animate').forEach(el => {
+      el.classList.add('animate-hero-in');
+      el.classList.remove('opacity-0', 'translate-y-8', 'scale-95');
+    });
 
         // Cleanup observers
         return () => {
@@ -123,13 +125,6 @@ function LandingPage() {
        {/* Inject animation styles (Unchanged) */}
        <style>
         {`
-          @keyframes float { /* Logo float */
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-12px); }
-          }
-          .animate-float {
-            animation: float 4s ease-in-out infinite;
-          }
           @keyframes section-in {
              from { opacity: 0; transform: translateY(40px); }
              to { opacity: 1; transform: translateY(0); }
@@ -181,62 +176,53 @@ function LandingPage() {
       <div className="min-h-screen bg-gradient-to-br from-white via-slate-50 to-gray-100 text-gray-800 font-sans">
         <LandingHeader />
 
-        {/* Hero Section (Unchanged) */}
-        {/* Hero Section (Updated with Logo on Right) */}
-<section className="py-24 sm:py-32 overflow-hidden">
-  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-12">
-    {/* Left Text Section */}
-    <div className="md:w-1/2 text-center md:text-left hero-animate opacity-0 transform translate-y-8 scale-95">
-      <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-gray-900 leading-tight mb-6">
-        <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-800 to-indigo-900">
-          ProctorAI+
-        </span>
-        Secure AI Proctoring
-      </h1>
-      <p className="text-xl text-gray-600 max-w-xl mx-auto md:mx-0 mb-8">
-        A next-generation, AI-powered exam proctoring system with a privacy-first philosophy. 
-        Ensure academic integrity while respecting student privacy.
-      </p>
-      <div className="flex flex-col sm:flex-row justify-center md:justify-start space-y-4 sm:space-y-0 sm:space-x-4">
-        <Link
-          to="/login?mode=register"
-          className="text-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors duration-200 px-8 py-3 rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-0.5 inline-block text-center"
-        >
-          Get Started
-        </Link>
-        <a
-          href="#features"
-          onClick={(e) => {
-            e.preventDefault();
-            document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
-          }}
-          className="text-lg font-medium text-indigo-600 hover:text-indigo-800 transition-colors duration-200 px-8 py-3 rounded-lg hover:bg-indigo-50 border border-indigo-200 inline-block text-center"
-        >
-          Learn More
-        </a>
-      </div>
-    </div>
+        {/* Hero Section */}
+        <section className="py-24 sm:py-32 overflow-hidden">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-12">
 
-    {/* Right Side: Logo + Shield */}
-    <div
-      className="md:w-1/3 flex flex-col items-center justify-center gap-6 hero-animate opacity-0 transform translate-y-8 scale-95"
-      style={{ animationDelay: '200ms' }}
-    >
-      {/* Logo Image */}
-      <img
-        src="/image.png"
-        alt="ProctorAI+ Logo"
-        className="w-40 sm:w-48 md:w-56 lg:w-64 object-contain animate-float drop-shadow-lg"
-      />
+            {/* MODIFIED: Left Side - Text Content */}
+            <div className="md:w-1/2 lg:w-7/12 text-center md:text-left hero-animate opacity-0 transform translate-y-8 scale-95 md:order-1">
+              {/* REMOVED Logo Image from here */}
+              {/* <img src="https://placehold.co/100x100/..." /> */}
 
-      {/* Shield Icon */}
-      <div className="text-8xl sm:text-9xl lg:text-[10rem] animate-float drop-shadow-2xl">
-        <ShieldCheck className="w-full h-full text-indigo-500" strokeWidth={1.5} />
-      </div>
-    </div>
-  </div>
-</section>
+               {/* Title block - Now stands alone */}
+               <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-gray-900 leading-tight mb-6"> {/* Added mb-6 */}
+                  <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-800 to-indigo-900">
+                      ProctorAI+
+                  </span>
+                  <span className="block text-gray-800 mt-1 text-4xl sm:text-5xl lg:text-6xl">
+                      Secure AI Proctoring
+                  </span>
+               </h1>
 
+              {/* Description and Buttons remain below */}
+              <p className="text-xl text-gray-600 max-w-xl mx-auto md:mx-0 mb-8">
+                A next-generation, AI-powered exam proctoring system with a privacy-first philosophy.
+                Ensure academic integrity while respecting student privacy.
+              </p>
+              <div className="flex flex-col sm:flex-row justify-center md:justify-start space-y-4 sm:space-y-0 sm:space-x-4">
+                <Link
+                  to="/login?mode=register"
+                  className="text-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors duration-200 px-8 py-3 rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-0.5 inline-block text-center" > Get Started </Link>
+                <a
+                  href="#features"
+                  onClick={(e) => { e.preventDefault(); document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }); }}
+                  className="text-lg font-medium text-indigo-600 hover:text-indigo-800 transition-colors duration-200 px-8 py-3 rounded-lg hover:bg-indigo-50 border border-indigo-200 inline-block text-center" > Learn More </a>
+              </div>
+            </div>
+
+        {/* MODIFIED: Right Side - Placeholder Image */}
+        <div className="md:w-1/2 lg:w-5/12 flex justify-center hero-animate opacity-0 transform translate-y-8 scale-95 md:order-2" style={{ animationDelay: '200ms' }}>
+          <img
+            src="/image.png" /* Served from Vite/CRA public root */
+            alt="AI Proctoring Illustration"
+            className="rounded-lg shadow-xl object-cover w-full h-auto max-w-[560px]" /* constrain width */
+            onError={(e) => { e.target.src = 'https://placehold.co/600x400/eeeeee/aaaaaa?text=Image+Error'; }}
+           />
+        </div>
+
+          </div>
+        </section>
 
         {/* Features Section (Unchanged) */}
         <section id="features" className="py-20 bg-white section-animate">
@@ -256,13 +242,12 @@ function LandingPage() {
         </section>
 
 
-        {/* How to Use Section - Slideshow with Dark Blue Cards */}
+        {/* How to Use Section (Unchanged) */}
         <section id="how-to-use" className="py-20 bg-gradient-to-br from-white via-slate-50 to-gray-100 section-animate">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
              <h2 className="text-4xl font-bold text-center text-gray-900 mb-10">
                How to Use the Platform
              </h2>
-             {/* Slideshow Component */}
              <HowToSlideshow />
           </div>
         </section>
@@ -402,30 +387,18 @@ const HowToSlideshow = () => {
 };
 
 
-// Step Item Component (MODIFIED: Replaced Number with Icon)
-const HowToStepItem = ({ number, icon: Icon, title, description, isVisible }) => {
-   return (
-     // Removed outer animation class, handled by parent slideshow now
-     <div className={`flex items-start gap-4 sm:gap-6 transition-opacity duration-500 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
-        {/* REMOVED: Number Circle Div */}
-        {/* <div className="..."> {number} </div> */}
-
-        {/* Text Content */}
-        {/* NEW: Added flex-grow and adjusted padding/margin */}
-        <div className="flex-grow pt-1">
-            {/* NEW: Placed Icon directly before title */}
-            <h3 className="text-xl sm:text-2xl font-semibold mb-2 flex items-center gap-3 text-white"> {/* Increased gap */}
-              <Icon className="w-7 h-7 text-indigo-300 flex-shrink-0" /> {/* Made Icon slightly larger */}
-              {title}
-            </h3>
-             {/* Display full description directly */}
-            <p className="text-indigo-100 text-base sm:text-lg min-h-[6em] sm:min-h-[4.5em]">
-               {description || ''}
-               {(!description || description.length < 50) && '\u00A0'}
-            </p>
-        </div>
-     </div>
-   );
-};
+// Step Item Component (Unchanged)
+const HowToStepItem = ({ icon: Icon, title, description, isVisible }) => (
+  <div className={`flex items-start gap-4 sm:gap-6 transition-opacity duration-500 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+    <div className="flex-grow pt-1">
+      <h3 className="text-xl sm:text-2xl font-semibold mb-2 flex items-center gap-3 text-white">
+        <Icon className="w-7 h-7 text-indigo-300 flex-shrink-0" />
+        {title}
+      </h3>
+      <p className="text-indigo-100 text-base sm:text-lg min-h-[6em] sm:min-h-[4.5em]">{description || ''} {(!description || description.length < 50) && '\u00A0'}</p>
+    </div>
+  </div>
+);
 
 export default LandingPage;
+
