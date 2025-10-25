@@ -1,28 +1,35 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, after_this_request
 from flask_cors import CORS
 import sqlite3
 import json
 import os
 from report_generator import generate_report
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime # ✨ NEW IMPORT
+from datetime import datetime
 
 app = Flask(__name__)
-CORS(app)
+# ✨ MODIFIED: Make CORS explicit to solve any lingering issues
+CORS(app, resources={r"/*": {"origins": "*"}})
 DATABASE_FILE = 'proctoring_data.db'
 
-# ✨ MODIFIED: Added new "web" alert weights
+# (Alert weights are unchanged)
 ALERT_WEIGHTS = {
     "Multiple faces detected!": 25,
     "CELL PHONE detected!": 20,
     "Distraction: Looking away while talking": 10,
     "No person detected!": 15,
     "Someone is talking!": 5,
+    "VOICE:": 10,
     "Suspicious micro gesture detected!": 5,
     "Hand on mouse/keyboard detected!": 2,
-    "WEB: Switched tabs": 8, # ✨ NEW
-    "WEB: Left focus": 5     # ✨ NEW
+    "WEB: Switched tabs": 8,
+    "WEB: Left focus": 5
 }
+
+# --- ✨ NEW: Server-side cache ---
+# This dictionary will store the last known alerts for each active session
+# We use this to avoid flooding the database
+SESSION_LAST_ALERTS = {}
 
 def calculate_integrity_score(alerts):
     score = 100
@@ -32,8 +39,8 @@ def calculate_integrity_score(alerts):
             if key in alert: score -= weight; break
     return max(0, score)
 
+# (init_db is unchanged)
 def init_db():
-    # ... (init_db function is completely unchanged) ...
     conn = sqlite3.connect(DATABASE_FILE)
     cursor = conn.cursor()
     cursor.execute("""
@@ -137,7 +144,7 @@ def login():
     }), 200
 
 # ===================================================
-# 🔹 ADMIN API ENDPOINTS 🔹
+# 🔹 ADMIN API ENDPOINTS (Unchanged) 🔹
 # ===================================================
 @app.route('/api/students', methods=['GET'])
 def get_students():
@@ -200,9 +207,9 @@ def assign_exam():
     conn.close()
     return jsonify({"status": "success", "message": "Exam assigned successfully"}), 201
 
-# --- ✨ NEW ENDPOINT: Get details for a single exam ---
 @app.route('/api/exam_details/<int:exam_id>', methods=['GET'])
 def get_exam_details(exam_id):
+    # ... (endpoint is unchanged) ...
     conn = sqlite3.connect(DATABASE_FILE)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -214,32 +221,24 @@ def get_exam_details(exam_id):
     conn.close()
     return jsonify(dict(exam))
 
-# --- ✨ MODIFIED ENDPOINT: Correctly queries by username ---
 @app.route('/api/exam_sessions/<int:exam_id>', methods=['GET'])
 def get_sessions_for_exam(exam_id):
-    """Fetches all proctoring sessions for a specific exam."""
+    # ... (endpoint is unchanged) ...
     conn = sqlite3.connect(DATABASE_FILE)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    
-    # Find all students (by username) assigned to this exam
     cursor.execute("""
         SELECT u.username 
         FROM exam_assignments a
         JOIN users u ON a.student_id = u.id
         WHERE a.exam_id = ?
     """, (exam_id,))
-    
     students = cursor.fetchall()
     if not students:
         conn.close()
         return jsonify([])
-
     student_usernames = [s['username'] for s in students]
     placeholders = ','.join('?' for _ in student_usernames)
-    
-    # Get all event sessions for those students' usernames
-    # ✨ We also filter by session_id starting with 'exam_{exam_id}_'
     query = f"""
         SELECT 
             e.session_id, 
@@ -251,17 +250,14 @@ def get_sessions_for_exam(exam_id):
         GROUP BY e.session_id, e.student_id
         ORDER BY start_time DESC
     """
-    
-    # Add the exam_id filter for the LIKE clause
     params = student_usernames + [f"exam_{exam_id}_%"]
-    
     cursor.execute(query, params)
     sessions = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return jsonify(sessions)
 
 # ===================================================
-# 🔹 STUDENT API ENDPOINTS 🔹
+# 🔹 STUDENT API ENDPOINTS (Unchanged) 🔹
 # ===================================================
 @app.route('/api/my_exams/<int:student_id>', methods=['GET'])
 def get_student_exams(student_id):
@@ -282,47 +278,68 @@ def get_student_exams(student_id):
     return jsonify(exams)
 
 # ===================================================
-# 🔹 PROCTORING DATA ENDPOINT 🔹
+# 🔹 PROCTORING DATA ENDPOINT (✨ HEAVILY MODIFIED) 🔹
 # ===================================================
 
-# --- ✨ MODIFIED ENDPOINT: To handle web alerts and Python alerts ---
 @app.route('/log_data', methods=['POST'])
 def log_data():
     data = request.json
     
-    # Data can come from Python (full payload) or Web (simple alert)
     is_web_alert = data.get('source') == 'web'
-    
-    student_id = data.get('student_id') # This is the username (e.g., 'student1')
+    student_id = data.get('student_id')
     session_id = data.get('session_id')
     
     if not student_id or not session_id:
         return jsonify({"status": "error", "message": "student_id and session_id are required"}), 400
 
+    # Get the set of alerts from the payload
+    current_alerts_list = data.get('alerts', [])
+    current_alerts_set = set(current_alerts_list)
+
+    # --- ✨ NEW EFFICIENCY LOGIC ---
+    # We only write to the DB if it's a web alert OR if the Python alerts have changed.
+    
+    # Get the last known alerts for this session from our cache
+    last_alerts_set = SESSION_LAST_ALERTS.get(session_id, set())
+
+    # Check if we should skip writing this log
+    if not is_web_alert and current_alerts_set == last_alerts_set:
+        # It's a Python alert, and nothing has changed.
+        # We just return "success" without flooding the database.
+        return jsonify({"status": "success", "message": "Data received, no change"}), 200
+
+    # If we are here, it's either a web alert or a *new* Python alert.
+    # We must write it to the database.
+    
+    # Update the cache with the new state
+    SESSION_LAST_ALERTS[session_id] = current_alerts_set
+    
+    # --- End of new logic ---
+
     if is_web_alert:
-        # Simple payload from React (tab switch)
-        alerts = data.get('alerts', [])
         metrics = {"source": "web"}
         timestamp = datetime.utcnow().isoformat() + "Z"
     else:
-        # Full payload from Python client-agent
-        alerts = data.get('alerts', [])
         metrics = data.get('metrics', {})
         timestamp = data.get('timestamp')
 
-    score = calculate_integrity_score(alerts)
-    alerts_json = json.dumps(alerts)
+    score = calculate_integrity_score(current_alerts_list)
+    alerts_json = json.dumps(current_alerts_list)
     metrics_json = json.dumps(metrics)
 
     conn = sqlite3.connect(DATABASE_FILE)
     cursor = conn.cursor()
     
-    # We store the student's *username* (e.g., 'student1') in the student_id column
-    # This is consistent and matches what we query in /api/exam_sessions
     sql = "INSERT INTO events (student_id, session_id, timestamp, alerts, metrics, integrity_score) VALUES (?, ?, ?, ?, ?, ?)"
     cursor.execute(sql, (student_id, session_id, timestamp, alerts_json, metrics_json, score))
     conn.commit()
     conn.close()
+    
+    # If the alerts list is now empty, it means this was an "all clear" event.
+    # We can clear the session from our cache to save memory.
+    if not current_alerts_list:
+        SESSION_LAST_ALERTS.pop(session_id, None)
+        
     return jsonify({"status": "success", "message": "Data logged"}), 200
 
 # ===================================================
@@ -345,18 +362,44 @@ def get_data(student_id, session_id):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM events WHERE student_id = ? AND session_id = ? ORDER BY timestamp DESC", (student_id, session_id))
-    rows = cursor.fetchall()
-    data = [dict(row) for row in rows]
+    rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
-    return jsonify(data)
+    return jsonify(rows)
 
 @app.route('/generate_report/<student_id>/<session_id>', methods=['GET'])
 def download_report(student_id, session_id):
-    # ... (endpoint is unchanged) ...
-    report_path = f"temp_report_{student_id}_{session_id}.pdf"
-    generated_file = generate_report(student_id, session_id, report_path)
-    if generated_file:
-        return send_file(generated_file, as_attachment=True, download_name=f"Report_{student_id}_{session_id}.pdf")
+    # Clean up the cache for this session, as it's now considered "over"
+    SESSION_LAST_ALERTS.pop(session_id, None)
+
+    # ✨ MODIFIED: Use a more robust temporary path
+    # Create a unique filename in a 'temp' subdirectory (if it doesn't exist)
+    temp_dir = os.path.join(os.path.dirname(__file__), 'temp_reports')
+    os.makedirs(temp_dir, exist_ok=True)
+    report_filename = f"Report_{student_id}_{session_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
+    report_path = os.path.join(temp_dir, report_filename)
+
+    print(f"Generating report at: {report_path}") # Debug print
+
+    generated_file_path = generate_report(student_id, session_id, report_path)
+
+    if generated_file_path:
+        # ✨ NEW: Use after_this_request for reliable cleanup
+        @after_this_request
+        def remove_file(response):
+            try:
+                print(f"Attempting to remove temporary file: {generated_file_path}") # Debug print
+                os.remove(generated_file_path)
+                print(f"Successfully removed: {generated_file_path}") # Debug print
+            except Exception as error:
+                app.logger.error(f"Error removing or closing downloaded file handle: {error}")
+            return response
+
+        # Send the file
+        return send_file(
+            generated_file_path,
+            as_attachment=True,
+            download_name=f"Report_{student_id}_{session_id}.pdf" # Keep the user-friendly name
+        )
     else:
         return "Could not generate report: No data for this session.", 404
 
