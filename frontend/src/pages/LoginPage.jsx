@@ -4,7 +4,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react'; // Assuming lucide-react is installed
 
 // Define the API URL for your backend
-const API_URL = 'http://127.0.0.1:5000';
+const API_URL = 'https://proctorai-plus-1.onrender.com';
 
 // A helper for the social icon fallbacks (if needed later)
 // const handleIconError = (e) => {

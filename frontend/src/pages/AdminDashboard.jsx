@@ -15,7 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 
-const API_URL = "http://127.0.0.1:5000";
+const API_URL = "https://proctorai-plus-1.onrender.com";
 
 // 🌟 Admin Header
 const AdminHeader = ({ onLogout }) => (

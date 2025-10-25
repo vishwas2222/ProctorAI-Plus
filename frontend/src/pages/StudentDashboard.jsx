@@ -7,7 +7,7 @@ import {
   Filter, RefreshCw, Clock
 } from 'lucide-react';
 
-const API_URL = 'http://127.0.0.1:5000';
+const API_URL = 'https://proctorai-plus-1.onrender.com';
 
 const ExamCard = ({ exam, onStart }) => {
   const scheduled = exam.scheduled_at || exam.start_time || exam.assigned_at;
