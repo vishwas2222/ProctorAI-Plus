@@ -7,3 +7,5 @@ python-dateutil
 simplejson
 reportlab 
 gunicorn
+pandas
+numpy
