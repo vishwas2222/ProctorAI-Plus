@@ -349,6 +349,31 @@ def download_report(student_id, session_id):
     else:
         return "Could not generate report: No data for this session.", 404
 
+@app.route('/api/my_exams/<int:student_id>', methods=['GET'])
+def get_student_exams(student_id):
+    """Fetches all exams assigned to a specific student."""
+    conn = sqlite3.connect(DATABASE_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    # Join assignments with exams to get exam details
+    cursor.execute("""
+        SELECT 
+            e.id as exam_id,
+            e.title,
+            e.description,
+            a.status,
+            a.assigned_at
+        FROM exam_assignments a
+        JOIN exams e ON a.exam_id = e.id
+        WHERE a.student_id = ?
+        ORDER BY a.assigned_at DESC
+    """, (student_id,))
+
+    exams = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return jsonify(exams)
+
 if __name__ == '__main__':
     init_db()
     app.run(host='0.0.0.0', port=5000, debug=True)

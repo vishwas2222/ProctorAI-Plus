@@ -1,24 +1,37 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
-// Import our new pages
+// Import Pages
 import LoginPage from './pages/LoginPage';
 import StudentDashboard from './pages/StudentDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import ExamPage from './pages/ExamPage';
 
+// Import Components
+import ProtectedRoute from './components/ProtectedRoute';
+
 function App() {
   return (
     <Routes>
-      {/* By default, navigate to the login page */}
+      {/* Public Routes */}
+      <Route path="/login" element={<LoginPage />} />
+      
+      {/* Default route redirects to login */}
       <Route path="/" element={<Navigate to="/login" />} />
 
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/admin/dashboard" element={<AdminDashboard />} />
-      <Route path="/student/dashboard" element={<StudentDashboard />} />
-      <Route path="/exam/:examId" element={<ExamPage />} />
+      {/* Admin Protected Routes */}
+      <Route element={<ProtectedRoute role="admin" />}>
+        <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        {/* We can add more admin routes here later, e.g., /admin/profile */}
+      </Route>
 
-      {/* A catch-all route for non-existent pages */}
+      {/* Student Protected Routes */}
+      <Route element={<ProtectedRoute role="student" />}>
+        <Route path="/student/dashboard" element={<StudentDashboard />} />
+        <Route path="/exam/:examId" element={<ExamPage />} />
+      </Route>
+      
+      {/* A catch-all route */}
       <Route path="*" element={<h1>404: Page Not Found</h1>} />
     </Routes>
   );

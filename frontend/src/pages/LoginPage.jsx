@@ -30,8 +30,9 @@ function LoginPage() {
       if (isLogin) {
         // On successful login
         const user = response.data.user;
-        // You can save user info to localStorage if you want
-        // localStorage.setItem('user', JSON.stringify(user));
+
+        // ✨ Store user info in localStorage ✨
+        localStorage.setItem('proctorUser', JSON.stringify(user));
 
         // Redirect based on role
         if (user.role === 'admin') {
